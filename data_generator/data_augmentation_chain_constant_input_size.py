@@ -37,8 +37,8 @@ class DataAugmentationConstantInputSize:
                  random_saturation=(0.5, 1.8, 0.5),
                  random_hue=(18, 0.5),
                  random_flip=0.5,
-                 random_translate=((0.03,0.5), (0.03,0.5), 0.5),
-                 random_scale=(0.5, 2.0, 0.5),
+                 random_translate=((0.03,0.5), (0.03,0.5), 0.5), #dx, dy, prob
+                 random_scale=(0.5, 2.0, 0.5), #min scale, max scale, prob
                  n_trials_max=3,
                  clip_boxes=True,
                  overlap_criterion='area',
