@@ -1,4 +1,4 @@
-'''
+﻿'''
 A data generator for 2D object detection.
 
 Copyright (C) 2018 Pierluigi Ferrari
@@ -29,6 +29,7 @@ import csv
 import os
 import sys
 from tqdm import tqdm, trange
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 try:
     import h5py
 except ImportError:
@@ -38,7 +39,8 @@ try:
 except ImportError:
     warnings.warn("'json' module is missing. The JSON-parser will be unavailable.")
 try:
-    from bs4 import BeautifulSoup
+    #from bs4 import BeautifulSoup
+    from pascal_voc_tools import XmlReader
 except ImportError:
     warnings.warn("'BeautifulSoup' module is missing. The XML-parser will be unavailable.")
 try:
@@ -472,41 +474,39 @@ class DataGenerator:
             # Loop over all images in this dataset.
             for image_id in it:
 
-                filename = '{}'.format(image_id) + '.jpg'
+                filename = '{}'.format(image_id) + '.png'
                 self.filenames.append(os.path.join(images_dir, filename))
 
                 if not annotations_dir is None:
                     # Parse the XML file for this image.
                     with open(os.path.join(annotations_dir, image_id + '.xml')) as f:
-                        soup = BeautifulSoup(f, 'xml')
+                        reader = XmlReader(f)#BeautifulSoup(f, 'xml')
 
-                    folder = soup.folder.text # In case we want to return the folder in addition to the image file name. Relevant for determining which dataset an image belongs to.
+                    #folder = soup.folder.text # In case we want to return the folder in addition to the image file name. Relevant for determining which dataset an image belongs to.
                     #filename = soup.filename.text
-
+                    ann_dict = reader.load()
                     boxes = [] # We'll store all boxes for this image here.
                     eval_neutr = [] # We'll store whether a box is annotated as "difficult" here.
-                    objects = soup.find_all('object') # Get a list of all objects in this image.
+                    objects=ann_dict['object'] # Get a list of all objects in this image.
 
                     # Parse the data for each object.
                     for obj in objects:
-                        class_name = obj.find('name', recursive=False).text
+                        class_name = obj['name']
                         class_id = self.classes.index(class_name)
                         # Check whether this class is supposed to be included in the dataset.
                         if (not self.include_classes == 'all') and (not class_id in self.include_classes): continue
-                        pose = obj.find('pose', recursive=False).text
-                        truncated = int(obj.find('truncated', recursive=False).text)
+                        pose = obj['pose']
+                        truncated = int(obj['truncated'])
                         if exclude_truncated and (truncated == 1): continue
-                        difficult = int(obj.find('difficult', recursive=False).text)
+                        difficult = int(obj['difficult'])
                         if exclude_difficult and (difficult == 1): continue
                         # Get the bounding box coordinates.
-                        bndbox = obj.find('bndbox', recursive=False)
-                        xmin = int(bndbox.xmin.text)
-                        ymin = int(bndbox.ymin.text)
-                        xmax = int(bndbox.xmax.text)
-                        ymax = int(bndbox.ymax.text)
-                        item_dict = {'folder': folder,
-                                     'image_name': filename,
-                                     'image_id': image_id,
+                        bndbox = obj['bndbox']
+                        xmin = int(bndbox['xmin'])
+                        ymin = int(bndbox['ymin'])
+                        xmax = int(bndbox['xmax'])
+                        ymax = int(bndbox['ymax'])
+                        item_dict = {
                                      'class_name': class_name,
                                      'class_id': class_id,
                                      'pose': pose,
@@ -528,6 +528,7 @@ class DataGenerator:
 
         self.dataset_size = len(self.filenames)
         self.dataset_indices = np.arange(self.dataset_size, dtype=np.int32)
+        
         if self.load_images_into_memory:
             self.images = []
             if verbose: it = tqdm(self.filenames, desc='Loading images into memory', file=sys.stdout)
@@ -1016,6 +1017,12 @@ class DataGenerator:
                     with Image.open(filename) as image:
                         batch_X.append(np.array(image, dtype=np.uint8))
 
+            #chiawui added to normalise img data
+            datagen = ImageDataGenerator(
+                featurewise_center=True,
+                featurewise_std_normalization=True)
+            datagen.fit(batch_X)
+            datagen.standardize(batch_X)
             # Get the labels for this batch (if there are any).
             if not (self.labels is None):
                 batch_y = deepcopy(self.labels[current:current+batch_size])
@@ -1039,11 +1046,11 @@ class DataGenerator:
                 batch_original_labels = deepcopy(batch_y) # The original, unaltered labels
 
             current += batch_size
-
+            
             #########################################################################################
             # Maybe perform image transformations.
             #########################################################################################
-
+            
             batch_items_to_remove = [] # In case we need to remove any images from the batch, store their indices in this list.
             batch_inverse_transforms = []
 
@@ -1087,7 +1094,7 @@ class DataGenerator:
                                 batch_X[i] = transform(batch_X[i])
 
                     batch_inverse_transforms.append(inverse_transforms[::-1])
-
+                
                 #########################################################################################
                 # Check for degenerate boxes in this batch item.
                 #########################################################################################
@@ -1142,7 +1149,7 @@ class DataGenerator:
             #########################################################################################
             # If we have a label encoder, encode our labels.
             #########################################################################################
-
+            
             if not (label_encoder is None or self.labels is None):
 
                 if ('matched_anchors' in returns) and isinstance(label_encoder, SSDInputEncoder):
