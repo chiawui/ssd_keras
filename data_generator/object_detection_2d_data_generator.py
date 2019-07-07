@@ -413,7 +413,8 @@ class DataGenerator:
                   exclude_truncated=False,
                   exclude_difficult=False,
                   ret=False,
-                  verbose=True):
+                  verbose=True,
+                  image_resize=[0,0]):
         '''
         This is an XML parser for the Pascal VOC datasets. It might be applicable to other datasets with minor changes to
         the code, but in its current form it expects the data format and XML tags of the Pascal VOC datasets.
@@ -474,7 +475,7 @@ class DataGenerator:
             # Loop over all images in this dataset.
             for image_id in it:
 
-                filename = '{}'.format(image_id) + '.png'
+                filename = '{}'.format(image_id) + '.jpg'
                 self.filenames.append(os.path.join(images_dir, filename))
 
                 if not annotations_dir is None:
@@ -506,6 +507,13 @@ class DataGenerator:
                         ymin = int(bndbox['ymin'])
                         xmax = int(bndbox['xmax'])
                         ymax = int(bndbox['ymax'])
+                        #scale bbox
+                        scale_factor=0.2;
+                        xmin = xmin*scale_factor
+                        ymin = ymin*scale_factor
+                        xmax = xmax*scale_factor
+                        ymax = ymax*scale_factor
+                        print(xmin,xmax,ymin,ymax)
                         item_dict = {
                                      'class_name': class_name,
                                      'class_id': class_id,
@@ -535,6 +543,8 @@ class DataGenerator:
             else: it = self.filenames
             for filename in it:
                 with Image.open(filename) as image:
+                    image=image.resize((image_resize[1],image_resize[0]), Image.ANTIALIAS)
+                    #image.save('test.jpg') 
                     self.images.append(np.array(image, dtype=np.uint8))
 
         if ret:
